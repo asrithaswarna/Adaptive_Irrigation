@@ -1,265 +1,312 @@
-# Adaptive Irrigation Management Through Environmental Condition-Based Water Requirement Estimation
+﻿================================================================================
+                    PROJECT DEMONSTRATION & REPRODUCTION GUIDE
+================================================================================
 
-**Project Subtitle:** Signal Processing and Machine Learning Based Soil Moisture Prediction  
-**Project Category:** Software-Only Data Science, Signal Processing & Machine Learning Pipeline  
-**Target Variable:** 24-Hour-Ahead Soil/Earth Moisture (`earth_humidity`)  
-**Deployment Environment:** Python 3.11+ / 3.12 compatible (VS Code / Terminal / Jupyter)
+PROJECT TITLE:
+"Adaptive Irrigation Management Through Environmental Condition-Based 
+ Water Requirement Estimation"
 
----
+PROJECT TYPE:
+Software-Only Signal Processing & Machine Learning Pipeline
+(No physical hardware, ESP32, Arduino, LoRa, or mechanical pumps required)
 
-## 📌 1. Project Overview & Objective
+COURSE / DEPARTMENT:
+Signal Processing / Electronics and Communication Engineering
 
-Agricultural crop health and water efficiency depend heavily on anticipating soil moisture changes before severe moisture deficits or waterlogging occur. 
+TEAM MEMBERS / STUDENT DETAILS:
+--------------------------------------------------------------------------------
+1. Name: Monica Raghini Chelle        Roll No : 2520040093
+2. Name: Swarna Asritha               Roll No : 2520040114
+3. Name: Dhanush Karthikeya           Roll No : 2520040032
+Department:  Electronics & Communication
+Institution: KLH
+Academic Year: 2026 - 2027
+--------------------------------------------------------------------------------
 
-This is a **100% software-only project** that ingests real-world multi-year agricultural/weather-station sensor time series (2024 & 2025 datasets), filters sensor noise and physical outliers using advanced signal processing (**Hampel Filter + CEEMDAN**), extracts multi-scale temporal dynamics, trains a high-precision **LightGBM Regressor** to forecast soil moisture **24 hours into the future**, explains feature contributions using **SHAP**, and delivers **transparent rule-based irrigation recommendations** for farm management.
 
-> [!NOTE]
-> **No physical hardware** (ESP32, Arduino, soil probes, relays, LoRa, or mechanical pumps) is required. The system is designed as an intelligent **decision-support software layer**.
+================================================================================
+1. SOFTWARE REQUIREMENTS, LIBRARIES & INSTALLATION INSTRUCTIONS
+================================================================================
 
----
+A. ENVIRONMENT & PREREQUISITES:
+   - Python Version: Python 3.11 or Python 3.12 (64-bit recommended)
+   - Operating System: Windows 10/11, Linux, or macOS
+   - Editor/IDE: Visual Studio Code, PyCharm, or JupyterLab
 
-## 🔄 2. End-to-End Pipeline Architecture
+B. DATASET SOURCES & CITATIONS:
+   - 2024 Agricultural Weather Station Dataset:
+     File: P18_BIORO_WeatherStationData_AgriDataValue_2024.xlsx
+     Source: Public Open Agricultural Weather Station Repository / Sensor Time Series
+     Contents: 11,548 hourly records (Air Temp, Humidity, Pressure, Dew Point, Rain, Earth Humidity/Temp, Solar).
+   - 2025 Agricultural Weather Station Dataset:
+     File: P18_BIORO_WeatherStationData_AgriDataValue_2025.xlsx
+     Source: Public Open Agricultural Weather Station Repository / Sensor Time Series
+     Contents: 10,564 hourly records spanning up to October 2025.
+   - Abnormal Sensor Stress-Test Dataset:
+     File: abnormal_sensor_dataset.csv
+     Contents: 15,000 hourly records with synthetic & real sensor anomalies (-999 dropouts, spikes, stuck, drift).
+   - Local Package Location:
+     All datasets are pre-packaged in the data/raw/ directory and project root. No external download is needed.
 
-The workflow follows a rigorous 12-stage sequential pipeline designed to prevent data leakage and ensure scientific reproducibility:
+C. REQUIRED PYTHON LIBRARIES:
+   - pandas (>=2.0.0)       : Time-series handling, datetime parsing, indexing
+   - numpy (>=1.24.0, <2.0) : Numerical arrays and mathematical operations
+   - scipy (>=1.10.0, <1.14): Signal filtering, peak detection, correlations
+   - openpyxl (>=3.1.0)     : Programmatic Excel (.xlsx) workbook ingestion
+   - matplotlib (>=3.7.0)   : Generation of publication-grade 300 DPI plots
+   - scikit-learn (>=1.3.0) : Dataset splitting, MAE/RMSE/R2 regression metrics
+   - lightgbm (>=4.0.0)     : Gradient boosted decision tree regression model
+   - shap (>=0.42.0, <0.46) : TreeSHAP game-theoretic explainability
+   - EMD-signal (>=1.4.0)   : CEEMDAN empirical mode decomposition
+   - joblib (>=1.3.0)       : Serialized model persistence and loading
+   - jupyter (>=1.0.0)      : Interactive notebook execution support
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        DATA INGESTION & DISCOVERY                      │
-│   • 2024 & 2025 Multi-Sheet Excel Datasets (or Abnormal Sensor CSV)     │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                        PREPROCESSING & CADENCE                         │
-│   • Datetime Unification, Chronological Sorting & Cadence (1h Hourly)  │
-│   • Physical Bounds Sanitization (Filter -999, Dropouts, Sentinels)    │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                     STAGE 1: HAMPEL OUTLIER FILTER                     │
-│   • Rolling Median & MAD Window to repair sensor spikes & glitches     │
-│   • Preserves raw signal & logs outlier boolean flags                  │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                 STAGE 2: CEEMDAN SIGNAL DECOMPOSITION                  │
-│   • Complete Ensemble Empirical Mode Decomposition + Adaptive Noise    │
-│   • Decomposes non-linear moisture signal into 8 IMFs + 1 Residue      │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│            STAGE 3: IMF ANALYSIS & SELECTIVE RECONSTRUCTION            │
-│   • Computes Variance, Energy % & Pearson Correlation per IMF          │
-│   • Discards stochastic high-frequency noise modes (IMFs 1-6)          │
-│   • Sums informative modes (IMFs 7, 8, Residue) into Denoised Signal   │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                     STAGE 4: FEATURE ENGINEERING                       │
-│   • 24-Hour Target Lead Shift (t + 24h)                                │
-│   • Lags (t-1 to t-24), Rolling Stats (Mean, Std, Min, Max), Rain Sum │
-│   • Cyclical Time Encodings (Hour Sin/Cos, Month Sin/Cos) [55 total]   │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│             STAGE 5: CHRONOLOGICAL LIGHTGBM FORECASTING                │
-│   • Time-Series Split: 70% Train (Past) / 15% Val / 15% Test (Future)  │
-│   • Leak-Free LightGBMRegressor with Early Stopping                    │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                 STAGE 6: EVALUATION & EXPLAINABILITY                   │
-│   • Quantitative Metrics: MAE, RMSE, R² (78.8%), MAPE                  │
-│   • TreeSHAP Interpretability: Global Beeswarm, Importance & Waterfall │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│            STAGE 7: DECISION-SUPPORT IRRIGATION ADVISORY               │
-│   • Configurable Agronomic Rules: Critical / Moderate / Optimal / Sat  │
-│   • Produces actionable hourly recommendations for farm operations     │
-└────────────────────────────────────────────────────────────────────────┘
-```
+D. STEP-BY-STEP INSTALLATION:
+   1. Open PowerShell, Command Prompt, or VS Code Terminal in project folder:
+      cd "c:\2nd Year\Odd Sem\Signal Processing\Project_SP\Demonstration"
 
----
+   2. Install all dependencies with a single command:
+      pip install -r requirements.txt
 
-## 📂 3. File Structure & Role of Each Component
 
-```
-Demonstration/
-│
-├── data/
-│   ├── raw/                                # Raw unprocessed sensor datasets
-│   │   ├── P18_BIORO_WeatherStationData_AgriDataValue_2024.xlsx # 2024 Multi-sheet data
-│   │   ├── P18_BIORO_WeatherStationData_AgriDataValue_2025.xlsx # 2025 Multi-sheet data
-│   │   └── abnormal_sensor_dataset.csv     # 15,000-row stress-test anomaly dataset
-│   │
-│   └── processed/                          # Pipeline-generated clean datasets
-│       ├── combined_data.csv               # Merged raw dataset with unified timestamps
-│       ├── cleaned_data.csv                # Chronologically sorted, deduplicated & imputed
-│       ├── hampel_data.csv                 # Hampel-filtered signal with outlier flags
-│       └── reconstructed_data.csv          # Extracted IMFs & selectively reconstructed signal
-│
-├── notebooks/                              # 8 Interactive Step-by-Step Educational Notebooks
-│   ├── 01_data_exploration.ipynb           # Dynamic workbook inspection & sensor stats
-│   ├── 02_data_preprocessing.ipynb         # Cadence checking & missing value management
-│   ├── 03_hampel_filter.ipynb              # Rolling median/MAD outlier cleaning demonstration
-│   ├── 04_ceemdan_analysis.ipynb           # Multi-scale mode decomposition into IMFs
-│   ├── 05_signal_reconstruction.ipynb      # IMF variance, energy & correlation selection
-│   ├── 06_feature_engineering.ipynb        # 24h target shift, lag creation & cyclical time
-│   ├── 07_lightgbm_prediction.ipynb        # Chronological Train/Val/Test split & LightGBM
-│   └── 08_shap_analysis.ipynb              # SHAP feature attribution & irrigation recommendation
-│
-├── src/                                    # Modular Clean Source Code
-│   ├── __init__.py                         # Python package initializer
-│   ├── data_loader.py                      # Dynamic Excel/CSV loader & column normalizer
-│   ├── preprocessing.py                    # Datetime parser, physical bounds sanity & gap handler
-│   ├── hampel_filter.py                    # Rolling median & MAD outlier detection module
-│   ├── ceemdan.py                          # CEEMDAN mode decomposition into IMFs + residue
-│   ├── reconstruction.py                   # Quantitative IMF analysis & selective reconstruction
-│   ├── feature_engineering.py              # 24h target construction & 55 predictive features
-│   ├── model.py                            # Chronological temporal splitting & LightGBM training
-│   ├── evaluation.py                       # MAE, RMSE, R², MAPE metrics & residual plots
-│   ├── explainability.py                   # TreeSHAP beeswarm, feature bar & waterfall plots
-│   ├── recommendation.py                   # Configurable rule-based irrigation decision support
-│   └── generate_notebooks.py               # Automated Jupyter notebook generation script
-│
-├── models/
-│   └── lightgbm_earth_moisture_model.joblib # Serialized fitted LightGBM model artifact
-│
-├── outputs/
-│   ├── plots/                              # 8 Publication-Grade Visualizations (300 DPI)
-│   │   ├── 01_hampel_filter_comparison.png # Raw vs. Cleaned signal & detected outlier flags
-│   │   ├── 02_ceemdan_imfs.png             # Multi-panel decomposition plot of all IMFs
-│   │   ├── 03_signal_reconstruction.png    # Selected IMFs vs. Reconstructed signal vs. Noise
-│   │   ├── 04_actual_vs_predicted.png      # Holdout test set actual vs. 24h predicted curves
-│   │   ├── 05_residuals_analysis.png       # Residual error distribution & scatter diagnostics
-│   │   ├── 06_shap_importance.png          # Global mean |SHAP| feature importance bar chart
-│   │   ├── 07_shap_summary.png             # SHAP beeswarm plot (positive/negative impacts)
-│   │   └── 08_shap_waterfall.png           # Local individual sample waterfall explanation
-│   │
-│   └── reports/                            # Generated Metrics & CSV Advisory Logs
-│       ├── evaluation_summary.json         # Train, Val, and Test numeric evaluation report
-│       ├── imf_characteristics.csv         # Variance, energy %, and Pearson correlation table
-│       └── irrigation_recommendations.csv  # 24h-ahead hourly irrigation advisory logs
-│
-├── main.py                                 # Master Pipeline Driver (Dual-Mode: Normal & Abnormal)
-├── requirements.txt                        # Python package dependencies
-└── README.md                               # Project execution & reproduction guide
-```
+================================================================================
+2. PURPOSE OF EACH FILE (INPUTS AND OUTPUTS)
+================================================================================
 
----
+--------------------------------------------------------------------------------
+ROOT FILES:
+--------------------------------------------------------------------------------
+• main.py
+  - Purpose : Master execution driver that runs all 12 pipeline stages end-to-end.
+  - Inputs  : Raw Excel files in data/raw/ or abnormal sensor CSV.
+  - Outputs : Executes pipeline, prints technical & layman summaries to console,
+              and generates all artifacts in data/processed/, models/, outputs/.
 
-## 🚀 4. How the Files Work Together
+• requirements.txt
+  - Purpose : Lists exact Python library versions required for full reproducibility.
+  - Inputs  : Used by pip package installer.
+  - Outputs : Configures local Python virtual/system environment.
 
-1. **`main.py`** is the master orchestrator. When executed, it calls each module in `src/` sequentially.
-2. **`src/data_loader.py`** inspects the `data/raw/` directory, discovers the sheets dynamically, standardizes column synonyms (e.g. `airTemperature` $\rightarrow$ `air_temperature`, `earthHumidity1` $\rightarrow$ `earth_humidity`), and loads the raw data.
-3. **`src/preprocessing.py`** unifies timestamps, verifies regular hourly cadence ($1\text{ hour}$), enforces physical sanity bounds (filtering unphysical sentinels like $-999$), and outputs `data/processed/cleaned_data.csv`.
-4. **`src/hampel_filter.py`** scans the moisture series with a rolling window of 25 steps ($2 \times 12 + 1$), replaces local spikes/glitches with the rolling median, and saves `outputs/plots/01_hampel_filter_comparison.png`.
-5. **`src/ceemdan.py`** decomposes the cleaned series into Intrinsic Mode Functions (IMFs) and saves `outputs/plots/02_ceemdan_imfs.png`.
-6. **`src/reconstruction.py`** computes variance, energy percentage, and Pearson correlation for each IMF, rejects high-frequency stochastic noise (IMFs 1 to 6), and reconstructs the denoised signal from significant modes (IMFs 7, 8, Residue), saving `data/processed/reconstructed_data.csv`.
-7. **`src/feature_engineering.py`** shifts the target series by $-24\text{ hours}$ to create the 24-hour-ahead target, adds multi-scale historical lags, rolling statistics (mean, std, min, max), precipitation totals, and cyclical sine/cosine time representations (55 features total).
-8. **`src/model.py`** splits the dataset strictly chronologically (70% Train / 15% Validation / 15% Test) without shuffling to avoid data leakage, trains the `LightGBMRegressor` with early stopping, and serializes the model to `models/lightgbm_earth_moisture_model.joblib`.
-9. **`src/evaluation.py`** computes MAE, RMSE, $R^2$, and MAPE metrics on the test partition, and saves actual vs. predicted curves (`outputs/plots/04_actual_vs_predicted.png`) and residual plots (`05_residuals_analysis.png`).
-10. **`src/explainability.py`** runs `shap.TreeExplainer` over test instances, identifying the exact positive/negative contributions of features and saving SHAP plots (`06`, `07`, `08`).
-11. **`src/recommendation.py`** translates the predicted moisture levels into clear, actionable agronomic advice (Critical Deficit, Moderate Deficit, Optimal Moisture, Saturation Risk) and exports `outputs/reports/irrigation_recommendations.csv`.
+• README.txt / README.md
+  - Purpose : Complete documentation guide and academic submission manifest.
 
----
+--------------------------------------------------------------------------------
+SOURCE FILES (src/ directory):
+--------------------------------------------------------------------------------
+• src/__init__.py
+  - Purpose : Marks src as a modular Python package and defines version metadata.
 
-## 💻 5. Step-by-Step Execution Guide
+• src/data_loader.py
+  - Purpose : Programmatically discovers Excel sheets and CSVs without hardcoded 
+              sheet names; standardizes column synonyms into snake_case.
+  - Inputs  : data/raw/*.xlsx or data/raw/*abnormal*.csv.
+  - Outputs : Standardized pandas DataFrame with canonical columns.
 
-### Step 1: Environment Setup
-Ensure Python 3.11 or 3.12 is installed. Clone or navigate to the project directory:
-```powershell
-cd "c:\2nd Year\Odd Sem\Signal Processing\Project_SP\Demonstration"
-```
+• src/preprocessing.py
+  - Purpose : Unifies date/time into single timestamp, checks 1-hour cadence,
+              sanitizes physical bounds (removes -999 sentinels), deduplicates,
+              and performs non-destructive interpolation.
+  - Inputs  : Raw DataFrames from data_loader.py.
+  - Outputs : data/processed/combined_data.csv and data/processed/cleaned_data.csv.
 
-### Step 2: Install Dependencies
-Install all required libraries using `requirements.txt`:
-```powershell
-pip install -r requirements.txt
-```
+• src/hampel_filter.py
+  - Purpose : Implements rolling median and Median Absolute Deviation (MAD) to
+              detect and repair sensor glitches/spikes while preserving raw data.
+  - Inputs  : data/processed/cleaned_data.csv.
+  - Outputs : data/processed/hampel_data.csv,
+              outputs/plots/01_hampel_filter_comparison.png.
 
-### Step 3: Run the Full Pipeline
+• src/ceemdan.py
+  - Purpose : Complete Ensemble Empirical Mode Decomposition with Adaptive Noise.
+              Decomposes non-linear moisture signal into 8 IMFs + 1 Residue.
+  - Inputs  : Hampel-cleaned earth_humidity signal.
+  - Outputs : 2D IMF decomposition matrix,
+              outputs/plots/02_ceemdan_imfs.png.
 
-#### Mode A: Standard Real-World Agricultural Datasets (2024 & 2025)
-To execute the complete 12-phase pipeline on the standard 2024–2025 multi-sheet weather station datasets:
-```powershell
-python main.py
-```
-*(or explicitly: `python main.py standard`)*
+• src/reconstruction.py
+  - Purpose : Quantitative analysis of each IMF (variance, energy %, correlation);
+              filters high-frequency noise modes (IMFs 1-6) and sums significant
+              modes (IMFs 7, 8, Residue) into a clean reconstructed signal.
+  - Inputs  : IMFs matrix and cleaned signal.
+  - Outputs : data/processed/reconstructed_data.csv,
+              outputs/reports/imf_characteristics.csv,
+              outputs/plots/03_signal_reconstruction.png.
 
-#### Mode B: Stress-Test on Abnormal Sensor Dataset
-To test the system against extreme anomalies (containing $-999$ sensor dropouts, abrupt jumps, frozen sensors, and drift):
-```powershell
-python main.py abnormal
-```
+• src/feature_engineering.py
+  - Purpose : Shifts target by -24h (t + 24h ahead), constructs lag features
+              (t-1 to t-24), rolling statistics (mean, std, min, max over 6h, 12h, 
+              24h), rainfall accumulation, and cyclical time encodings (55 total).
+  - Inputs  : data/processed/reconstructed_data.csv.
+  - Outputs : Feature matrix X (14,952 rows, 55 features) and target vector y.
 
-### Step 4: Run Interactive Jupyter Notebooks
-If you prefer an interactive walkthrough of each phase in VS Code or Jupyter Lab:
-1. Open VS Code and navigate to the `notebooks/` folder.
-2. Select your Python kernel.
-3. Run notebooks sequentially from `01_data_exploration.ipynb` through `08_shap_analysis.ipynb`.
+• src/model.py
+  - Purpose : Strictly chronological train/val/test splitting (70% / 15% / 15%)
+              without random shuffling (leak-free); trains LightGBMRegressor with
+              validation early stopping.
+  - Inputs  : Engineered feature matrix and target.
+  - Outputs : models/lightgbm_earth_moisture_model.joblib.
 
----
+• src/evaluation.py
+  - Purpose : Evaluates regression metrics (MAE, RMSE, R2, MAPE) across Train,
+              Val, and Test sets; generates error distribution plots.
+  - Inputs  : Trained model and split partitions.
+  - Outputs : outputs/reports/evaluation_summary.json,
+              outputs/plots/04_actual_vs_predicted.png,
+              outputs/plots/05_residuals_analysis.png.
 
-## 📊 6. Empirical Results & Verification Summary
+• src/explainability.py
+  - Purpose : TreeSHAP interpretability computing feature contribution impact.
+  - Inputs  : Trained LightGBM model and holdout test feature instances.
+  - Outputs : outputs/plots/06_shap_importance.png,
+              outputs/plots/07_shap_summary.png,
+              outputs/plots/08_shap_waterfall.png.
 
-### Quantitative Results on 2024–2025 Agricultural Datasets
+• src/recommendation.py
+  - Purpose : Rule-based decision-support system classifying 24h forecasted 
+              moisture into agronomic advisories (Critical, Moderate, Optimal, Saturation).
+  - Inputs  : Model predictions and test timestamps.
+  - Outputs : outputs/reports/irrigation_recommendations.csv.
 
-| Metric / Parameter | Value | Plain English Interpretation |
-| :--- | :--- | :--- |
-| **Total Ingested Data** | 22,112 raw rows $\rightarrow$ 13,567 clean hourly steps | Over **1.6 continuous years** of real weather & soil sensor history. |
-| **Hampel Filter Glitches Fixed** | 1,496 points (11.0%) | Sensor noise spikes removed without altering true ground moisture. |
-| **CEEMDAN Decomposition** | 8 IMFs + 1 Residue | Noise modes (IMFs 1–6) discarded; significant modes (IMFs 7, 8, Residue) retained. |
-| **Chronological Split** | 70% Train (9,463 rows) \| 15% Val \| 15% Test (2,028 rows) | Strictly time-ordered without shuffling to ensure zero data leakage. |
-| **Holdout Test Set $R^2$ Score** | **0.7880 (78.8%)** | Strong predictive power in forecasting soil moisture 24 hours ahead. |
-| **Holdout Test Set MAE** | **9.5655% moisture** | Average prediction deviation is within $\pm 9.6\%$ volumetric moisture. |
-| **Holdout Test Set RMSE** | **13.8030% moisture** | Low root-mean-squared penalty across sharp seasonal transitions. |
+• src/generate_notebooks.py
+  - Purpose : Automatically constructs the 8 clean Jupyter Notebooks in notebooks/.
 
-### Top 5 Predictive Drivers Identified by SHAP:
-1. **`earth_humidity`** (Current soil moisture baseline) — Impact magnitude: `24.58`
-2. **`earth_humidity_reconstructed`** (Denoised CEEMDAN signal component) — Impact magnitude: `8.81`
-3. **`earth_humidity_lag_1h`** (Moisture 1 hour prior) — Impact magnitude: `6.70`
-4. **`imf_residue`** (Long-term climate seasonal trend) — Impact magnitude: `4.86`
-5. **`earth_humidity_reconstructed_lag_1h`** (Lagged reconstructed signal) — Impact magnitude: `1.74`
 
-### Irrigation Advisory Distribution on Test Data:
-* 🟢 **39.5% Optimal Moisture (35%–65%)**: No irrigation required (conserves water).
-* 🔴 **26.9% Critical Deficit (< 20%)**: Immediate irrigation required (prevents crop stress).
-* 🔵 **19.2% Saturation Risk (> 65%)**: Irrigation prohibited (prevents waterlogging and root rot).
-* 🟡 **14.3% Moderate Deficit (20%–35%)**: Scheduled irrigation recommended.
 
----
 
-## 🛡️ 7. Handling of Abnormal Sensor Values & Extreme Weather
 
-The pipeline features a two-tiered defensive design for handling real-world data imperfections:
 
-1. **Machine Sensor Faults (Handled Automatically)**:
-   - **Out-of-Range Sentinels (`-999`, `999`, etc.)**: Caught by `sanitize_physical_bounds()` in `preprocessing.py` and coerced to NaN before safe interpolation.
-   - **Short-Term Spikes & Blips**: Cleaned by `apply_hampel_filter()` using local Median Absolute Deviation (MAD).
-   - **High-Frequency Electrical Jitter**: Removed by CEEMDAN selective reconstruction.
+--------------------------------------------------------------------------------
+NOTEBOOKS (notebooks/ directory):
+--------------------------------------------------------------------------------
+• 01_data_exploration.ipynb      : Workbook inspection and sensor distribution exploration
+• 02_data_preprocessing.ipynb    : Datetime unification, cadence check & missing value handling
+• 03_hampel_filter.ipynb         : Rolling median and MAD outlier detection walkthrough
+• 04_ceemdan_analysis.ipynb      : CEEMDAN mode decomposition and multi-panel plotting
+• 05_signal_reconstruction.ipynb : IMF variance/energy characterization & selective filtering
+• 06_feature_engineering.ipynb   : 24h target construction, lags & cyclical time encodings
+• 07_lightgbm_prediction.ipynb   : Chronological model training & evaluation metrics
+• 08_shap_analysis.ipynb         : TreeSHAP explainability & decision-support advisories
 
-2. **Real-World Extreme Weather (Heatwaves, Storms, Freezes)**:
-   - **Sudden Heatwaves**: Captured through temperature lags ($t-1, t-6, t-24$) and rolling standard deviations, causing LightGBM to predict accelerated drying and trigger **Critical Irrigation** alerts.
-   - **Heavy Rainfall**: Captured through $6\text{h}$ and $24\text{h}$ cumulative precipitation features, causing LightGBM to adjust moisture upward and trigger **Hold Irrigation** alerts.
 
----
+================================================================================
+3. MAIN FILE TO RUN & CORRECT EXECUTION SEQUENCE
+================================================================================
 
-## 📦 8. Deliverables & Reproducibility Checklist
+A. PRIMARY EXECUTION (Command Line / Terminal):
 
-- [x] Complete modular source code in `src/` (all 9 modules).
-- [x] Master execution driver `main.py` supporting both standard and abnormal datasets.
-- [x] 8 step-by-step Jupyter Notebooks in `notebooks/`.
-- [x] 8 publication-ready high-resolution plots saved in `outputs/plots/`.
-- [x] Numeric metric reports and advisory CSVs saved in `outputs/reports/`.
-- [x] Serialized LightGBM model saved in `models/lightgbm_earth_moisture_model.joblib`.
-- [x] Dependencies file `requirements.txt`.
-- [x] Comprehensive documentation and execution guide `README.md`.
+   Option 1: Standard Mode (2024 & 2025 Farm Datasets)
+   ---------------------------------------------------
+   Command:
+      python main.py
+   (or explicitly: python main.py standard)
+
+   What happens:
+   - Ingests 2024 & 2025 Excel workbooks (13,567 clean hourly hours).
+   - Cleans 1,496 sensor outliers using Hampel filter.
+   - Decomposes signals using CEEMDAN and reconstructs denoised signal.
+   - Trains LightGBM model on past data (2024 to early 2025).
+   - Evaluates on future test set (R2 = 0.788, MAE = 9.56%).
+   - Generates 8 high-res plots, SHAP explainability, and irrigation advice.
+
+   Option 2: Abnormal Stress-Test Mode (Abnormal Sensor Dataset)
+   ------------------------------------------------------------
+   Command:
+      python main.py abnormal
+
+   What happens:
+   - Ingests data/raw/abnormal_sensor_dataset.csv (15,000 rows).
+   - Filters out -999 sentinels, dropouts, and extreme physical anomalies.
+   - Repairs sensor spikes using Hampel filter.
+   - Trains and evaluates LightGBM (R2 = 0.769, MAE = 7.52%).
+   - Generates full diagnostic plots and recommendations without crashing.
+
+B. INTERACTIVE EXECUTION (Jupyter Notebooks):
+   Open VS Code, navigate to notebooks/, and run cells in sequence:
+   01 -> 02 -> 03 -> 04 -> 05 -> 06 -> 07 -> 08
+
+
+================================================================================
+4. SETTINGS & CONFIGURABLE PARAMETERS
+================================================================================
+
+All paths are dynamically resolved using Python's pathlib. No hardcoded absolute 
+system paths exist in the code.
+
+Configurable parameters inside source files:
+1. Soil Moisture Target Lead Horizon (src/feature_engineering.py):
+   - horizon_hours = 24  (Forecasts 24 hours into the future)
+
+2. Hampel Filter Tuning (src/hampel_filter.py):
+   - window_size = 12    (Half window -> effective window is 2*12 + 1 = 25 hours)
+   - n_sigma = 3.0       (MAD multiplier threshold = 3.0 * 1.4826)
+
+3. CEEMDAN Decomposition (src/ceemdan.py):
+   - trials = 30         (Ensemble noise iterations)
+   - max_imfs = 7        (Maximum number of intrinsic mode functions)
+
+4. Train / Val / Test Split Ratios (src/model.py):
+   - train_ratio = 0.70  (First 70% of chronological timeline)
+   - val_ratio = 0.15    (Next 15% for validation & early stopping)
+   - test_ratio = 0.15   (Final 15% for holdout test evaluation)
+
+5. Agronomic Irrigation Thresholds (src/recommendation.py):
+   - critical_dry = 20.0%       (Severe moisture deficit -> Urgent watering)
+   - irrigation_needed = 35.0%  (Sub-optimal moisture -> Scheduled watering)
+   - adequate_max = 65.0%       (Optimal field capacity -> No watering)
+   - saturated = 85.0%          (Excess moisture -> Irrigation prohibited)
+
+
+================================================================================
+5. EXPECTED OUTPUTS & WHERE RESULTS ARE SAVED
+================================================================================
+
+A. TERMINAL CONSOLE OUTPUT:
+   Prints phase-by-phase execution progress followed by:
+   - [TECHNICAL METRICS SUMMARY] : Runtime, MAE, RMSE, R2 Score, MAPE
+   - [LAYMAN / SIMPLE TERMS SUMMARY] : Plain English recap of all 5 stages
+
+B. SAVED PLOTS (outputs/plots/ - 300 DPI High Resolution):
+   • 01_hampel_filter_comparison.png : Raw vs Cleaned signal & flagged outliers
+   • 02_ceemdan_imfs.png             : Multi-panel plot of all 8 IMFs + Residue
+   • 03_signal_reconstruction.png    : Selected IMFs vs Reconstructed signal vs Noise
+   • 04_actual_vs_predicted.png      : Test set actual vs 24h predicted curves
+   • 05_residuals_analysis.png       : Residual error distribution & scatter diagnostics
+   • 06_shap_importance.png          : Mean |SHAP| global feature importance bar chart
+   • 07_shap_summary.png             : SHAP beeswarm plot showing impact directions
+   • 08_shap_waterfall.png           : Local single-sample waterfall explanation
+
+C. SAVED REPORTS (outputs/reports/):
+   • evaluation_summary.json         : JSON file with exact Train/Val/Test metrics
+   • imf_characteristics.csv         : IMF variance, energy %, and correlations
+   • irrigation_recommendations.csv  : Hourly 24h-ahead farm advisories log
+
+D. SAVED PROCESSED DATA (data/processed/):
+   • combined_data.csv, cleaned_data.csv, hampel_data.csv, reconstructed_data.csv
+
+E. SERIALIZED MODEL (models/):
+   • lightgbm_earth_moisture_model.joblib : Fitted LightGBM model artifact
+
+
+================================================================================
+6. KNOWN LIMITATIONS & EXECUTION NOTES
+================================================================================
+
+1. CEEMDAN Computation Time:
+   - Decomposing 13,500+ hourly samples with 30 ensemble trials is CPU-intensive 
+     and typically takes 60 to 90 seconds. This is normal mathematical behavior.
+
+2. Pure Software Decision-Support System:
+   - This project produces predictive recommendations. It does not send direct 
+     electrical control signals to physical irrigation valves/pumps.
+
+3. Character Encoding on Windows Terminals:
+   - All console outputs use clean ASCII markers ([+], [-], *) to ensure 100% 
+     compatibility with Windows cp1252 / UTF-8 terminals without encoding errors.
+
+4. Missing Sensor Channel Fallback:
+   - If a standalone dataset lacks secondary channels (e.g. dew_point, air_pressure),
+     the pipeline automatically imputes or adapts without failing.
+
+================================================================================
+                          END OF README.txt
+================================================================================
