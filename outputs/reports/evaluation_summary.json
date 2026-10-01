@@ -1,0 +1,23 @@
+{
+    "train": {
+        "Split": "Train",
+        "MAE": 0.2511,
+        "RMSE": 0.4127,
+        "R2_Score": 0.9997,
+        "MAPE(%)": 0.75
+    },
+    "val": {
+        "Split": "Val",
+        "MAE": 4.5069,
+        "RMSE": 10.0113,
+        "R2_Score": 0.7142,
+        "MAPE(%)": 9.21
+    },
+    "test": {
+        "Split": "Test",
+        "MAE": 9.5655,
+        "RMSE": 13.803,
+        "R2_Score": 0.788,
+        "MAPE(%)": 187.8
+    }
+}
