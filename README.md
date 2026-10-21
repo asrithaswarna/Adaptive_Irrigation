@@ -7,6 +7,19 @@
 
 ---
 
+### 👥 Team Members & Project Details
+* **Course:** Signal Processing / Electronics and Communication Engineering
+* **Institution:** KLH University
+* **Academic Year:** 2026 – 2027
+
+| S.No | Student Name | Roll Number |
+| :--- | :--- | :--- |
+| 1 | **Monica Raghini Chelle** | `2520040093` |
+| 2 | **Swarna Asritha** | `2520040114` |
+| 3 | **Dhanush Karthikeya** | `2520040032` |
+
+---
+
 ## 📌 1. Project Overview & Objective
 
 Agricultural crop health and water efficiency depend heavily on anticipating soil moisture changes before severe moisture deficits or waterlogging occur. 
